@@ -1,18 +1,19 @@
 const fs = require('fs');
 const https = require('https');
 
-// Official Powerball JSON feed
 const url = 'https://www.powerball.com/api/v1/numbers/powerball/recent?_limit=1';
 
-https.get(url, (res) => {
+https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
   let data = '';
 
   res.on('data', chunk => { data += chunk; });
   res.on('end', () => {
     try {
-      const json = JSON.parse(data)[0];
+      if (!data) throw new Error('Empty response');
+      const jsonArray = JSON.parse(data);
+      if (!Array.isArray(jsonArray) || jsonArray.length === 0) throw new Error('No data in response');
 
-      // Format numbers and powerplay
+      const json = jsonArray[0];
       const result = {
         drawDate: json.field_draw_date,
         numbers: [...json.field_winning_numbers.split(' ').map(n => n.trim())],
@@ -24,9 +25,9 @@ https.get(url, (res) => {
       fs.writeFileSync('results.json', JSON.stringify(result, null, 2));
       console.log('results.json updated:', result);
     } catch (err) {
-      console.error('Error parsing JSON:', err);
+      console.error('Error parsing JSON:', err.message);
     }
   });
 }).on('error', err => {
-  console.error('Error fetching data:', err);
+  console.error('Error fetching data:', err.message);
 });
