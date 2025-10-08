@@ -1,41 +1,48 @@
 const fs = require('fs');
 const https = require('https');
 
-const url = 'https://www.powerball.com/api/v1/numbers/powerball/recent?_format=json';
+const url = 'https://www.lotteryusa.com/powerball/';
 
 https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
-  let data = '';
+  let html = '';
 
-  res.on('data', chunk => { data += chunk; });
+  res.on('data', chunk => { html += chunk; });
   res.on('end', () => {
     try {
-      if (!data) throw new Error('Empty response');
-      const jsonArray = JSON.parse(data);
-      if (!Array.isArray(jsonArray) || jsonArray.length === 0) throw new Error('No data in response');
+      // Match numbers like <span class="result">12</span>
+      const matches = [...html.matchAll(/<span class="result">(\d+)<\/span>/g)];
+      if (matches.length < 6) throw new Error('Not enough numbers found');
 
-      const json = jsonArray[0];
+      const numbers = matches.map(m => m[1]);
+      const drawDateMatch = html.match(/<time datetime="([^"]+)"/);
+      const drawDate = drawDateMatch ? drawDateMatch[1] : 'Unknown date';
+
+      // Look for Power Play info
+      const powerPlayMatch = html.match(/Power Play:?<\/strong>\s*(\d+[xX])/);
+      const powerPlay = powerPlayMatch ? powerPlayMatch[1] : '';
+
       const result = {
-        drawDate: json.field_draw_date,
-        numbers: json.field_winning_numbers.split(' ').map(n => n.trim()),
-        powerPlay: json.field_multiplier || '',
-        source: 'https://www.powerball.com/',
+        drawDate,
+        numbers,
+        powerPlay,
+        source: url,
         updated: new Date().toISOString()
       };
 
       fs.writeFileSync('results.json', JSON.stringify(result, null, 2));
       console.log('✅ results.json updated:', result);
     } catch (err) {
-      console.error('Error parsing JSON:', err.message);
+      console.error('❌ Error scraping Powerball page:', err.message);
       const fallback = {
         drawDate: 'Waiting for latest draw',
         numbers: ['-', '-', '-', '-', '-', '-'],
         powerPlay: '-',
-        source: 'https://www.powerball.com/',
+        source: url,
         updated: new Date().toISOString()
       };
       fs.writeFileSync('results.json', JSON.stringify(fallback, null, 2));
     }
   });
 }).on('error', err => {
-  console.error('Error fetching data:', err.message);
+  console.error('Network error:', err.message);
 });
