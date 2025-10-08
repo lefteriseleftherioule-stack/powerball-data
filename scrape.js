@@ -1,47 +1,31 @@
 const fs = require('fs');
 const https = require('https');
 
-const url = 'https://www.powerball.com/';
+const url = 'https://www.powerball.com/api/v1/numbers/powerball/recent?_format=json';
 
 https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
-  let html = '';
+  let data = '';
 
-  res.on('data', chunk => { html += chunk; });
+  res.on('data', chunk => { data += chunk; });
   res.on('end', () => {
     try {
-      // Find the winning numbers section
-      const numbersMatch = html.match(/<ul class="winning-numbers">\s*([\s\S]*?)<\/ul>/);
-      if (!numbersMatch) throw new Error('Numbers not found');
+      if (!data) throw new Error('Empty response');
+      const jsonArray = JSON.parse(data);
+      if (!Array.isArray(jsonArray) || jsonArray.length === 0) throw new Error('No data in response');
 
-      const numbersHtml = numbersMatch[1];
-      const numMatches = [...numbersHtml.matchAll(/<li.*?>(\d+)<\/li>/g)];
-      if (!numMatches || numMatches.length === 0) throw new Error('No numbers found');
-
-      // Extract numbers as array of strings
-      const numbers = numMatches.map(m => m[1]);
-
-      // Extract draw date
-      const dateMatch = html.match(/<p class="date">Winning Numbers for (.*?)<\/p>/);
-      const drawDate = dateMatch ? dateMatch[1] : 'Unknown';
-
-      // Extract Power Play
-      const ppMatch = html.match(/<li class="powerball">\s*(\d+)\s*<\/li>/);
-      const powerPlay = ppMatch ? ppMatch[1] : '';
-
+      const json = jsonArray[0];
       const result = {
-        drawDate,
-        numbers,
-        powerPlay,
+        drawDate: json.field_draw_date,
+        numbers: json.field_winning_numbers.split(' ').map(n => n.trim()),
+        powerPlay: json.field_multiplier || '',
         source: 'https://www.powerball.com/',
         updated: new Date().toISOString()
       };
 
       fs.writeFileSync('results.json', JSON.stringify(result, null, 2));
-      console.log('results.json updated:', result);
-
+      console.log('✅ results.json updated:', result);
     } catch (err) {
-      console.error('Error scraping Powerball page:', err.message);
-      // fallback: create placeholder JSON so workflow doesn't fail
+      console.error('Error parsing JSON:', err.message);
       const fallback = {
         drawDate: 'Waiting for latest draw',
         numbers: ['-', '-', '-', '-', '-', '-'],
@@ -53,13 +37,5 @@ https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
     }
   });
 }).on('error', err => {
-  console.error('Error fetching page:', err.message);
-  const fallback = {
-    drawDate: 'Waiting for latest draw',
-    numbers: ['-', '-', '-', '-', '-', '-'],
-    powerPlay: '-',
-    source: 'https://www.powerball.com/',
-    updated: new Date().toISOString()
-  };
-  fs.writeFileSync('results.json', JSON.stringify(fallback, null, 2));
+  console.error('Error fetching data:', err.message);
 });
