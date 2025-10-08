@@ -1,48 +1,65 @@
-const fs = require('fs');
-const https = require('https');
+import fs from "fs";
+import fetch from "node-fetch";
+import * as cheerio from "cheerio";
 
-const url = 'https://www.lotteryusa.com/powerball/';
+async function scrapePowerball() {
+  const url = "https://www.powerball.com/";
 
-https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
-  let html = '';
+  try {
+    console.log("Fetching Powerball data...");
+    const response = await fetch(url);
+    const html = await response.text();
 
-  res.on('data', chunk => { html += chunk; });
-  res.on('end', () => {
-    try {
-      // Match numbers like <span class="result">12</span>
-      const matches = [...html.matchAll(/<span class="result">(\d+)<\/span>/g)];
-      if (matches.length < 6) throw new Error('Not enough numbers found');
+    const $ = cheerio.load(html);
 
-      const numbers = matches.map(m => m[1]);
-      const drawDateMatch = html.match(/<time datetime="([^"]+)"/);
-      const drawDate = drawDateMatch ? drawDateMatch[1] : 'Unknown date';
+    // Try to extract numbers — Powerball sometimes uses different classes
+    let numbers = [];
+    $(".white-ball").each((_, el) => numbers.push($(el).text().trim()));
 
-      // Look for Power Play info
-      const powerPlayMatch = html.match(/Power Play:?<\/strong>\s*(\d+[xX])/);
-      const powerPlay = powerPlayMatch ? powerPlayMatch[1] : '';
+    const powerball = $(".powerball").first().text().trim() || "-";
+    const powerPlay =
+      $(".powerplay").first().text().trim() ||
+      $(".multiplier").first().text().trim() ||
+      "-";
 
-      const result = {
-        drawDate,
-        numbers,
-        powerPlay,
-        source: url,
-        updated: new Date().toISOString()
-      };
+    const drawDate =
+      $(".draw-date")
+        .first()
+        .text()
+        .replace("Drawing Date:", "")
+        .trim() || "Unknown";
 
-      fs.writeFileSync('results.json', JSON.stringify(result, null, 2));
-      console.log('✅ results.json updated:', result);
-    } catch (err) {
-      console.error('❌ Error scraping Powerball page:', err.message);
-      const fallback = {
-        drawDate: 'Waiting for latest draw',
-        numbers: ['-', '-', '-', '-', '-', '-'],
-        powerPlay: '-',
-        source: url,
-        updated: new Date().toISOString()
-      };
-      fs.writeFileSync('results.json', JSON.stringify(fallback, null, 2));
+    if (numbers.length < 5) {
+      console.error("❌ Error scraping Powerball page: Not enough numbers found");
+      throw new Error("Not enough numbers found");
     }
-  });
-}).on('error', err => {
-  console.error('Network error:', err.message);
-});
+
+    const result = {
+      drawDate,
+      numbers,
+      powerball,
+      powerPlay,
+      source: url,
+      updated: new Date().toISOString(),
+    };
+
+    fs.writeFileSync("results.json", JSON.stringify(result, null, 2));
+    console.log("✅ Powerball results updated successfully");
+    console.log(result);
+  } catch (error) {
+    console.error("❌ Error scraping Powerball page:", error.message);
+
+    // Fallback JSON to keep the site functional
+    const fallback = {
+      drawDate: "Waiting for latest draw",
+      numbers: ["-", "-", "-", "-", "-", "-"],
+      powerPlay: "-",
+      source: url,
+      updated: new Date().toISOString(),
+    };
+
+    fs.writeFileSync("results.json", JSON.stringify(fallback, null, 2));
+  }
+}
+
+scrapePowerball();
