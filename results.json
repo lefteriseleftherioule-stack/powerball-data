@@ -1,14 +1,14 @@
 {
-  "drawDate": "Waiting for latest draw",
+  "drawDate": "and find the number of winners by prize tier",
   "numbers": [
-    "-",
-    "-",
-    "-",
-    "-",
-    "-",
-    "-"
+    "5",
+    "5",
+    "0",
+    "0",
+    "1",
+    "0"
   ],
   "powerPlay": "-",
-  "source": "https://www.powerball.com/",
-  "updated": "2025-10-09T06:52:46.774Z"
+  "source": "https://www.powerball.com/api/v1/numbers/powerball/recent?_format=json",
+  "updated": "2025-10-09T14:07:18.236Z"
 }
