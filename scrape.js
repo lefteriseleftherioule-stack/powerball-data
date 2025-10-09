@@ -2,7 +2,7 @@ import fetch from "node-fetch";
 import * as cheerio from "cheerio";
 import fs from "fs";
 
-const POWERBALL_URL = "https://www.powerball.com/";
+const POWERBALL_URL = "https://www.powerball.com/games/powerball";
 
 async function scrapePowerball() {
   try {
@@ -10,22 +10,27 @@ async function scrapePowerball() {
     const html = await response.text();
     const $ = cheerio.load(html);
 
-    // Example structure as of 2025 — adjust selector if Powerball changes layout
-    const drawDate = $(".game-draw-date").first().text().trim() || "Waiting for latest draw";
-
+    // The current Powerball site places numbers inside divs with class "winning-number"
     const numbers = [];
-    $(".white-ball").each((i, el) => {
+    $("div.winning-number").each((i, el) => {
       numbers.push($(el).text().trim());
     });
 
-    const powerBall = $(".powerball").first().text().trim() || "-";
-    const powerPlay = $(".powerplay").first().text().trim() || "-";
+    // Powerball site also shows Power Play separately
+    const powerPlay = $("div.powerplay span").first().text().trim() || "-";
 
-    if (numbers.length < 5) throw new Error("Not enough numbers found");
+    // Extract the draw date
+    const drawDate = $("span.draw-date, div.draw-date, h5:contains('Drawing Date')")
+      .first()
+      .text()
+      .trim()
+      .replace("Drawing Date: ", "") || "Waiting for latest draw";
+
+    if (numbers.length < 6) throw new Error("Not enough numbers found");
 
     const result = {
       drawDate,
-      numbers: [...numbers.slice(0, 5), powerBall],
+      numbers,
       powerPlay,
       source: POWERBALL_URL,
       updated: new Date().toISOString(),
