@@ -1,64 +1,40 @@
-import fs from "fs";
 import fetch from "node-fetch";
 import * as cheerio from "cheerio";
+import fs from "fs";
+
+const POWERBALL_URL = "https://www.powerball.com/";
 
 async function scrapePowerball() {
-  const url = "https://www.powerball.com/";
-
   try {
-    console.log("Fetching Powerball data...");
-    const response = await fetch(url);
+    const response = await fetch(POWERBALL_URL);
     const html = await response.text();
-
     const $ = cheerio.load(html);
 
-    // Try to extract numbers — Powerball sometimes uses different classes
-    let numbers = [];
-    $(".white-ball").each((_, el) => numbers.push($(el).text().trim()));
+    // Example structure as of 2025 — adjust selector if Powerball changes layout
+    const drawDate = $(".game-draw-date").first().text().trim() || "Waiting for latest draw";
 
-    const powerball = $(".powerball").first().text().trim() || "-";
-    const powerPlay =
-      $(".powerplay").first().text().trim() ||
-      $(".multiplier").first().text().trim() ||
-      "-";
+    const numbers = [];
+    $(".white-ball").each((i, el) => {
+      numbers.push($(el).text().trim());
+    });
 
-    const drawDate =
-      $(".draw-date")
-        .first()
-        .text()
-        .replace("Drawing Date:", "")
-        .trim() || "Unknown";
+    const powerBall = $(".powerball").first().text().trim() || "-";
+    const powerPlay = $(".powerplay").first().text().trim() || "-";
 
-    if (numbers.length < 5) {
-      console.error("❌ Error scraping Powerball page: Not enough numbers found");
-      throw new Error("Not enough numbers found");
-    }
+    if (numbers.length < 5) throw new Error("Not enough numbers found");
 
     const result = {
       drawDate,
-      numbers,
-      powerball,
+      numbers: [...numbers.slice(0, 5), powerBall],
       powerPlay,
-      source: url,
+      source: POWERBALL_URL,
       updated: new Date().toISOString(),
     };
 
     fs.writeFileSync("results.json", JSON.stringify(result, null, 2));
-    console.log("✅ Powerball results updated successfully");
-    console.log(result);
+    console.log("✅ Powerball results updated:", result);
   } catch (error) {
     console.error("❌ Error scraping Powerball page:", error.message);
-
-    // Fallback JSON to keep the site functional
-    const fallback = {
-      drawDate: "Waiting for latest draw",
-      numbers: ["-", "-", "-", "-", "-", "-"],
-      powerPlay: "-",
-      source: url,
-      updated: new Date().toISOString(),
-    };
-
-    fs.writeFileSync("results.json", JSON.stringify(fallback, null, 2));
   }
 }
 
