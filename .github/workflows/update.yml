@@ -1,35 +1,35 @@
-name: Update Powerball Results
+name: Scrape Powerball
 
 on:
   schedule:
-    - cron: "0 * * * *" # runs every hour
+    - cron: "0 * * * *" # every hour
   workflow_dispatch:
 
 jobs:
-  update:
+  scrape:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
       - name: Install dependencies
-        run: npm install cheerio node-fetch@2
+        run: npm install
 
-      - name: Run scraper
+      - name: Run Puppeteer scraper
         run: node scrape.js
 
-      - name: Commit results
+      - name: Commit and push results
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add results.json
-          git commit -m "Update Powerball results" || echo "No changes to commit"
+          git commit -m "Update Powerball results"
           git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
