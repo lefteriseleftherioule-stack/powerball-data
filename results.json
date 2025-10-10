@@ -9,6 +9,6 @@
     "-"
   ],
   "powerPlay": "-",
-  "source": "https://www.powerball.com/draw-result",
-  "updated": "2025-10-10T19:26:34.505Z"
+  "source": "https://www.powerball.com/api/v1/numbers/powerball/recent10",
+  "updated": "2025-10-10T19:32:41.204Z"
 }
