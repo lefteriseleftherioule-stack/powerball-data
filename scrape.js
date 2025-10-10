@@ -3,25 +3,25 @@ import * as cheerio from "cheerio";
 import fs from "fs";
 
 const SOURCES = [
-  { url: "https://www.lotterycritic.com/powerball/results/", name: "LotteryCritic" },
+  { url: "https://www.lottonumbers.com/powerball-results.asp", name: "LottoNumbers" },
   { url: "https://www.powerball.com/", name: "Powerball Official" }
 ];
 
-function parseLotteryCritic(html) {
+function parseLottoNumbers(html) {
   const $ = cheerio.load(html);
 
-  const firstDraw = $(".results-item").first();
-  const date = firstDraw.find(".results-date").text().trim();
-
-  const nums = firstDraw.find(".results-ball").map((i, el) => $(el).text().trim()).get();
-  const powerPlay = firstDraw.find(".powerplay").text().trim() || "-";
+  // The latest draw is usually in a <ul class="balls"> within a container.
+  const latest = $(".balls").first();
+  const nums = latest.find("li").map((i, el) => $(el).text().trim()).get();
+  const drawDate = $(".results").first().find("h2, h1").first().text().trim();
+  const powerPlay = $("td:contains('Power Play')").next().text().trim() || "-";
 
   if (nums.length >= 6) {
     return {
-      drawDate: date || "Unknown",
+      drawDate: drawDate || "Unknown",
       numbers: nums.slice(0, 6),
-      powerPlay: powerPlay,
-      source: "LotteryCritic",
+      powerPlay: powerPlay || "-",
+      source: "LottoNumbers",
       updated: new Date().toISOString()
     };
   }
@@ -51,10 +51,14 @@ async function trySource(src) {
     console.log("Status:", res.status);
     const text = await res.text();
     console.log("Fetched length:", text.length);
-    console.log("Snippet:", text.slice(0, 500).replace(/\s+/g, " ").slice(0, 500) + (text.length > 500 ? " ..." : ""));
+    console.log(
+      "Snippet:",
+      text.slice(0, 300).replace(/\s+/g, " ").slice(0, 300) +
+        (text.length > 300 ? " ..." : "")
+    );
 
-    if (src.name === "LotteryCritic") {
-      const r = parseLotteryCritic(text);
+    if (src.name === "LottoNumbers") {
+      const r = parseLottoNumbers(text);
       if (r) return r;
     }
     if (src.name === "Powerball Official") {
