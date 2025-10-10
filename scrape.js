@@ -1,58 +1,56 @@
-import puppeteer from "puppeteer";
-import fs from "fs";
+const puppeteer = require('puppeteer');
 
 async function scrapePowerball() {
-  const url = "https://www.powerball.com/";
-  console.log("Launching Puppeteer...");
-
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-  });
-
+  const browser = await puppeteer.launch({ headless: true });
   const page = await browser.newPage();
 
   try {
-    console.log("Opening Powerball page:", url);
-    await page.goto(url, { waitUntil: "networkidle2", timeout: 60000 });
+    // Attempt to scrape the official Powerball site
+    await page.goto('https://www.powerball.com/');
+    await page.waitForSelector('.powerball-results__ball', { timeout: 30000 });
 
-    // Wait for the Powerball numbers to appear
-    await page.waitForSelector(".powerball-results__ball", { timeout: 30000 });
-
-    const data = await page.evaluate(() => {
-      const balls = Array.from(document.querySelectorAll(".powerball-results__ball"))
-        .map(el => el.textContent.trim())
-        .filter(n => n !== "");
-
-      const powerPlay = document.querySelector(".powerball-results__powerplay")?.textContent?.trim() || "-";
-      const drawDate = document.querySelector(".powerball-results__date")?.textContent?.trim() || "Unknown Date";
-
-      return { balls, powerPlay, drawDate };
+    const numbers = await page.evaluate(() => {
+      const balls = Array.from(document.querySelectorAll('.powerball-results__ball'));
+      const powerPlay = document.querySelector('.powerball-results__multiplier')?.textContent.trim() || 'N/A';
+      return {
+        numbers: balls.slice(0, 5).map(ball => ball.textContent.trim()),
+        powerPlay
+      };
     });
 
-    const result = {
-      drawDate: data.drawDate,
-      numbers: data.balls,
-      powerPlay: data.powerPlay,
-      source: url,
-      updated: new Date().toISOString(),
-    };
+    if (numbers.numbers.length === 5) {
+      console.log('Scraped from Powerball.com:', numbers);
+    } else {
+      throw new Error('Incomplete data from Powerball.com');
+    }
+  } catch (error) {
+    console.error('Error scraping Powerball.com:', error.message);
 
-    fs.writeFileSync("results.json", JSON.stringify(result, null, 2));
-    console.log("✅ Wrote results.json:", result);
-  } catch (err) {
-    console.error("❌ Error scraping Powerball:", err);
-    const fallback = {
-      drawDate: "Waiting for latest draw",
-      numbers: ["-", "-", "-", "-", "-", "-"],
-      powerPlay: "-",
-      source: url,
-      updated: new Date().toISOString(),
-    };
-    fs.writeFileSync("results.json", JSON.stringify(fallback, null, 2));
-  } finally {
-    await browser.close();
+    // Fallback to LotteryUSA
+    try {
+      await page.goto('https://www.lotteryusa.com/powerball/');
+      await page.waitForSelector('.lotteryusa-result-ball', { timeout: 30000 });
+
+      const numbers = await page.evaluate(() => {
+        const balls = Array.from(document.querySelectorAll('.lotteryusa-result-ball'));
+        const powerPlay = document.querySelector('.lotteryusa-result-powerplay')?.textContent.trim() || 'N/A';
+        return {
+          numbers: balls.slice(0, 5).map(ball => ball.textContent.trim()),
+          powerPlay
+        };
+      });
+
+      if (numbers.numbers.length === 5) {
+        console.log('Scraped from LotteryUSA:', numbers);
+      } else {
+        throw new Error('Incomplete data from LotteryUSA');
+      }
+    } catch (error) {
+      console.error('Error scraping LotteryUSA:', error.message);
+    }
   }
+
+  await browser.close();
 }
 
 scrapePowerball();
