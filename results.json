@@ -1,5 +1,5 @@
 {
-  "drawDate": "Error fetching draw",
+  "drawDate": "Waiting for latest draw",
   "numbers": [
     "-",
     "-",
@@ -9,6 +9,6 @@
     "-"
   ],
   "powerPlay": "-",
-  "source": "https://www.powerball.com/games/home",
-  "updated": "2025-10-10T17:10:04.280Z"
+  "source": "none",
+  "updated": "2025-10-10T17:18:43.379Z"
 }
