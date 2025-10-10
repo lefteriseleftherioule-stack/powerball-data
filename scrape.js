@@ -3,52 +3,53 @@ import * as cheerio from "cheerio";
 import fs from "fs";
 
 const SOURCES = [
-  { url: "https://www.lotteryusa.com/powerball/", type: "html", name: "LotteryUSA Powerball" },
-  { url: "https://www.powerball.com/", type: "html", name: "Powerball Home" }
-  // other sources can go here
+  { url: "https://www.lotteryusa.com/powerball/", name: "LotteryUSA" },
+  { url: "https://www.powerball.com/", name: "Powerball Official" }
 ];
 
 function parseLotteryUSA(html) {
   const $ = cheerio.load(html);
-  // On LotteryUSA, the numbers appear as <span class="result">N</span>
-  const spans = $("span.result");
-  if (spans.length < 6) {
-    return null;
+
+  // Try a few likely selectors:
+  const liNums = $("ul.draw-result li").map((i, el) => $(el).text().trim()).get();
+  if (liNums.length >= 6) {
+    // sometimes the “PB” is appended, so filter
+    const cleaned = liNums.map(n => n.replace(/PB.*$/i, "").trim());
+    return {
+      drawDate: $("h1").first().text().trim(),
+      numbers: cleaned.slice(0,6), // take first 6
+      powerPlay: (html.match(/Power Play[:\s]*([0-9]x)/i) || ["", "-"])[1],
+      source: "LotteryUSA",
+      updated: new Date().toISOString()
+    };
   }
-  const nums = spans.slice(0, 6).map((i, el) => $(el).text().trim()).get();
-  // often the first five are white balls, last is Powerball
-  // date: there's an element showing “Powerball Wednesday Oct 08, 2025” etc
-  const dateHeader = $("h1").first().text().trim();
-  const dateMatch = dateHeader.match(/\w+\s+\d{1,2},\s*\d{4}/);
-  const drawDate = dateMatch ? dateMatch[0] : "";
-  // power play: find text “Power Play: X” or similar
-  let powerPlay = "";
-  const ppMatch = html.match(/Power Play[:\s]*([0-9]+[xX])/i);
-  if (ppMatch) powerPlay = ppMatch[1];
-  return {
-    drawDate,
-    numbers: nums,
-    powerPlay: powerPlay || "-",
-    source: "LotteryUSA",
-    updated: new Date().toISOString()
-  };
+
+  const spanNums = $("span.result").map((i, el) => $(el).text().trim()).get();
+  if (spanNums.length >= 6) {
+    return {
+      drawDate: $("h1").first().text().trim(),
+      numbers: spanNums.slice(0,6),
+      powerPlay: (html.match(/Power Play[:\s]*([0-9]x)/i) || ["", "-"])[1],
+      source: "LotteryUSA",
+      updated: new Date().toISOString()
+    };
+  }
+
+  return null;
 }
 
-function parseFallback(html) {
+function parseOfficial(html) {
   const $ = cheerio.load(html);
-  // try extracting from Powerball.com if possible
   const nums = [];
-  $(".winning-number").each((i, el) => {
+  $(".winning-numbers__balls span").each((i, el) => {
     nums.push($(el).text().trim());
   });
   if (nums.length >= 6) {
-    const drawDate = $(".date").first().text().trim() || "";
-    const powerPlay = $(".multiplier").first().text().trim() || "-";
     return {
-      drawDate,
-      numbers: nums.slice(0, 6),
-      powerPlay,
-      source: "PowerballOfficial",
+      drawDate: $(".winning-numbers__date").text().trim(),
+      numbers: nums,
+      powerPlay: $(".powerplay span").text().trim() || "-",
+      source: "Powerball Official",
       updated: new Date().toISOString()
     };
   }
@@ -56,29 +57,30 @@ function parseFallback(html) {
 }
 
 async function trySource(src) {
+  console.log(`\n--- Fetching ${src.name}: ${src.url}`);
+  let text;
   try {
-    console.log(`\n--- Fetching ${src.name}: ${src.url}`);
     const res = await fetch(src.url, {
-      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0)" }
+      headers: { "User-Agent": "Mozilla/5.0" }
     });
     console.log("Status:", res.status);
-    const text = await res.text();
+    text = await res.text();
     console.log("Fetched length:", text.length);
-    console.log("Snippet:", text.slice(0, 500).replace(/\s+/g, " ").slice(0, 500) + (text.length > 500 ? "…" : ""));
-
-    if (src.name === "LotteryUSA Powerball") {
-      const ret = parseLotteryUSA(text);
-      if (ret) return ret;
-    }
-    // fallback to official parse
-    const ret2 = parseFallback(text);
-    if (ret2) return ret2;
-
-    return null;
+    console.log("Snippet:", text.slice(0, 800).replace(/\s+/g, " ").slice(0, 800) + (text.length > 800 ? " …" : ""));
   } catch (err) {
-    console.error(`Error fetching ${src.url}:`, err.message);
+    console.error("Fetch error:", err.message);
     return null;
   }
+
+  if (src.name === "LotteryUSA") {
+    const r = parseLotteryUSA(text);
+    if (r) return r;
+  }
+  // fallback to official
+  const r2 = parseOfficial(text);
+  if (r2) return r2;
+
+  return null;
 }
 
 (async () => {
@@ -91,7 +93,6 @@ async function trySource(src) {
     }
   }
   if (!result) {
-    // fallback
     result = {
       drawDate: "Waiting for latest draw",
       numbers: ["-", "-", "-", "-", "-", "-"],
