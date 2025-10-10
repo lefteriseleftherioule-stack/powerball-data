@@ -6,9 +6,24 @@ const API_URL = "https://www.powerball.com/api/v1/numbers/powerball/recent10";
 async function scrapePowerballAPI() {
   try {
     console.log("Fetching official Powerball API:", API_URL);
-    const res = await fetch(API_URL, { headers: { "User-Agent": "Mozilla/5.0" } });
+    const res = await fetch(API_URL, {
+      headers: {
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "application/json, text/plain, */*"
+      },
+      redirect: "follow"
+    });
+
     console.log("Status:", res.status);
-    const data = await res.json();
+    const text = await res.text();
+
+    // Try parsing JSON manually in case we get HTML back
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (err) {
+      throw new Error("Response was not valid JSON. Snippet:\n" + text.slice(0, 300));
+    }
 
     const latest = data[0];
     if (!latest || !latest.field_winning_numbers) throw new Error("No valid draw data found");
